@@ -2,21 +2,26 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <time.h>
 
-// Latitud, Longitud y UTC
-float lat;
-float lon;
-int utc;
+// Latitud, Longitud
+float lat, lon;
+int localTemp,Temp, feelTemp;
 
 const char* apiKey = "79ec60437018d54a22094466dce934bc";
 
 // Intervalo de consulta
 unsigned long WTPrevMillis = 0;
-unsigned long WTInterval = 60000; // 1 minuto
+unsigned long WTInterval = 1800000; // 30 minutos
+
+//******************* Fecha y Hora ***********************
+#include <time.h>
 
 String timestamp;
-int localTemp,Temp, feelTemp;
+int utc;
+
+// Intervalo de consulta
+unsigned long NtpPrevMillis = 0;
+unsigned long NtpInterval = 60000; // 1 minuto
 
 //***************** LCD Display **************************
 #include <LiquidCrystal_I2C.h>
@@ -61,6 +66,12 @@ const int address_lat = 0;
 const int address_lon = 4;
 const int address_utc = 8;
 
+//******************* Gemini AI ***********************
+const char* Gemini_Token = "AIzaSyA2pDi2CZvlC9RqOE3M8j7mFIFIjXJfyA4";
+const char* Gemini_Max_Tokens = "100";
+
+String Clothes1, Clothes2;
+
 void setup() {//######################################################## SETUP #####################################################
   Serial.begin(115200);
   lcd.init();
@@ -73,6 +84,10 @@ void setup() {//######################################################## SETUP #
   pinMode(RstWF, INPUT_PULLUP); // Botón Reset WiFi
   pinMode(ledPin, OUTPUT);
   pinMode(touchPin, INPUT);
+
+  // Configurar fecha y hora
+  configTime(utc*60*60, 0, "pool.ntp.org"); // UTC * 60" * 60'
+  TimeData();
 }
 
 void loop() {//######################################################## LOOP #######################################################
@@ -82,21 +97,44 @@ void loop() {//######################################################## LOOP ###
   EEPROM.get(address_lon, lon);
   EEPROM.get(address_utc, utc);
 
-  // Consultar Clima y Hora
-  if (millis() - WTPrevMillis > WTInterval || WTPrevMillis == 0){
+  // Consultar NTP Server
+  if (millis() - NtpPrevMillis > NtpInterval || NtpPrevMillis == 0){
   
-  // Configurar y Consultar fecha y hora
-  configTime(utc*60*60, 0, "pool.ntp.org"); // UTC * 60" * 60'
-  timestamp = TimeData();
+    // Consultar Fecha y Hora
+    timestamp = TimeData();
+      Serial.print("Timestamp: ");      
+      Serial.println(timestamp);
 
 
-  // Medir Temperatura interior
-  localTemp = getLocalTemp();
+    NtpPrevMillis = millis();
+  }
 
-  // Consultar Temperatura exterior
-  getWeatherData(Temp, feelTemp);
+  // Consultar OpenWeatherMap API
+  if (millis() - WTPrevMillis > WTInterval || WTPrevMillis == 0){
 
-  WTPrevMillis = millis();
+    // Medir Temperatura interior
+    localTemp = getLocalTemp();
+      Serial.print("Local Temp: ");      
+      Serial.println(localTemp);
+
+
+    // Consultar Temperatura exterior
+    getWeatherData(Temp, feelTemp);
+      Serial.print("Temp: ");      
+      Serial.println(Temp);
+      Serial.print("Feel Temp: ");      
+      Serial.println(feelTemp);
+
+    // Generar comentario Gemini AI
+    String Clothes = Gemini();
+      Serial.print("Comentario Gemini: ");      
+      Serial.println(Clothes);
+
+      // Dividir frease en 2 filas
+      Clothes1 = Clothes.substring(0, 15);
+      Clothes2 = Clothes.substring(15);
+
+    WTPrevMillis = millis();
   }
 
   int pantalla = Scroll(); // Leer botón Touch
@@ -145,12 +183,17 @@ void loop() {//######################################################## LOOP ###
         lcd.clear();
         lcd.backlight();
         lcd.setCursor(2, 0);
-        lcd.print("Pantalla 2");
+        
+        lcd.setCursor(0, 0);
+        lcd.print(Clothes1);
+        lcd.setCursor(0, 1);
+        lcd.print(Clothes2);
+
         LCDPrevMillis = millis();
         break;
 
         default:
-          // Aquí irían las instrucciones por default
+          lcd.backlight();
           break;
         }
 
@@ -237,7 +280,6 @@ void CustomWiFiManager(){
   lcd.setCursor(1, 1);
   lcd.print(WiFi.localIP());
   delay(2000);
-  //lcd.noBacklight();
 
   // Guardar parámetros de WM en variables globales
   String parameter1 = custom_param1.getValue();
@@ -349,4 +391,54 @@ int Scroll(){
   delay(200);
 
   return opcion;
+}
+
+// Consulta vestimenta adecuada a Gemini AI
+String Gemini(){
+
+  String StrTemp = String(feelTemp);
+  String Prompt = "\"Afuera hace " + StrTemp + " °C. Cómo debo vestirme para salir si soy algo friolento? Responde en 30 caracteres como máximo usando jerga argentina, sin usar caracteres acentuados ni comas\"";
+
+  HTTPClient https;
+
+  if (https.begin("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + (String)Gemini_Token)) {  // HTTPS
+
+    https.addHeader("Content-Type", "application/json");
+    String payload = String("{\"contents\": [{\"parts\":[{\"text\":" + Prompt + "}]}],\"generationConfig\": {\"maxOutputTokens\": " + (String)Gemini_Max_Tokens + "}}");
+    
+    //Serial.println(payload); // PROMPT DEBUG
+
+    // start connection and send HTTP header
+    int httpCode = https.POST(payload);
+
+
+    if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
+      String payload = https.getString();
+      
+      DynamicJsonDocument doc(1024);
+
+      deserializeJson(doc, payload);
+      String Answer = doc["candidates"][0]["content"]["parts"][0]["text"];
+      
+      // For Filtering our Special Characters, WhiteSpaces and NewLine Characters
+      Answer.trim();
+      String filteredAnswer = "";
+      for (size_t i = 0; i < Answer.length(); i++) {
+        char c = Answer[i];
+        if (isalnum(c) || isspace(c)) {
+          filteredAnswer += c;
+        } else {
+          filteredAnswer += ' ';
+          }
+      }
+      Answer = filteredAnswer;
+
+      return Answer;
+    } else {
+      Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
+      }
+    https.end();
+  } else {
+    Serial.printf("[HTTPS] Unable to connect\n");
+    }
 }
