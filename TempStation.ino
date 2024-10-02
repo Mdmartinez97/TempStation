@@ -40,13 +40,13 @@ int pantalla_anterior;
 //***************** Sensor DS18B20 ***********************
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#define SensorPin 4
+#define SensorPin 5
 // Declaración de objetos
 OneWire oneWire(SensorPin);
 DallasTemperature sensors(&oneWire);
 
 //******************* Pin Touch **************************
-const int ledPin = 2;
+const int touchLED = 2;
 const int touchPin = 4;
 
 //******************* WiFi Manager ***********************
@@ -81,21 +81,22 @@ void setup() {//######################################################## SETUP #
 
   CustomWiFiManager(); // Llamado a función conectar Wi-Fi
 
-  pinMode(RstWF, INPUT_PULLUP); // Botón Reset WiFi
-  pinMode(ledPin, OUTPUT);
-  pinMode(touchPin, INPUT);
-
-  // Configurar fecha y hora
-  configTime(utc*60*60, 0, "pool.ntp.org"); // UTC * 60" * 60'
-  TimeData();
-}
-
-void loop() {//######################################################## LOOP #######################################################
-  
   // Buscar datos guardados
   EEPROM.get(address_lat, lat);
   EEPROM.get(address_lon, lon);
   EEPROM.get(address_utc, utc);
+
+  pinMode(RstWF, INPUT_PULLUP);
+  pinMode(SensorPin, INPUT_PULLUP);
+  pinMode(touchLED, OUTPUT);
+  pinMode(touchPin, INPUT);
+
+  // Configurar fecha y hora
+  configTime(utc*60*60, 0, "pool.ntp.org"); // UTC expresado en segundos
+  TimeData();
+}
+
+void loop() {//######################################################## LOOP #######################################################
 
   // Consultar NTP Server
   if (millis() - NtpPrevMillis > NtpInterval || NtpPrevMillis == 0){
@@ -105,15 +106,15 @@ void loop() {//######################################################## LOOP ###
       Serial.print("Timestamp: ");      
       Serial.println(timestamp);
 
-
     NtpPrevMillis = millis();
   }
 
-  // Consultar OpenWeatherMap API
+  // Consultar Sensor y API's
   if (millis() - WTPrevMillis > WTInterval || WTPrevMillis == 0){
 
     // Medir Temperatura interior
-    localTemp = getLocalTemp();
+    sensors.requestTemperatures();
+    localTemp = sensors.getTempCByIndex(0); // Consultar sensor #0
       Serial.print("Local Temp: ");      
       Serial.println(localTemp);
 
@@ -207,7 +208,7 @@ void loop() {//######################################################## LOOP ###
     }
 
   //BOTÓN DE RESET WIFI
- if(digitalRead(RstWF) == LOW){ // Restablecer configuración, borrar las credenciales almacenadas y reiniciar ESP
+  if(digitalRead(RstWF) == LOW){ // Restablecer configuración, borrar las credenciales almacenadas y reiniciar ESP
     delay(50);
       if(digitalRead(RstWF) == LOW){
         wifiManager.resetSettings();
@@ -312,14 +313,6 @@ void CustomWiFiManager(){
   WiFi.persistent(true);
 }
 
-// Función de consulta a Sensor local
-int getLocalTemp() {
- /* sensors.requestTemperatures();
-  int localTemp = sensors.getTempCByIndex(0);*/
-  int localTemp = temperatureRead(); // REEMPLAZAR
-  return localTemp;
-}
-
 // Función de consulta a Get Weather Map
 void getWeatherData(int &Temp, int &feelTemp) {
   HTTPClient http; // Iniciación
@@ -364,7 +357,7 @@ String TimeData() {
     Serial.println("Failed to obtain time");
   }
   char time[20];
-  strftime(time, sizeof(time), "%d/%m/%y   %H:%M", &timeinfo);
+  strftime(time, sizeof(time), "%d/%m/%y   %H:%M", &timeinfo); //Agregar %A para obeter el día de la semana
   
   return time;
 }
@@ -378,7 +371,7 @@ int Scroll(){
 
   const int touchThreshold = 80; // Valor umbral de sensibilidad touchPin
   if (touchValue < touchThreshold) {
-    digitalWrite(ledPin, HIGH);  // Enciende el LED
+    digitalWrite(touchLED, HIGH);  // Enciende el LED
       if(opcion < N_opciones - 1){
         opcion++;
       } else {
@@ -386,7 +379,7 @@ int Scroll(){
         }
     
   } else {
-    digitalWrite(ledPin, LOW);   // Apaga el LED
+    digitalWrite(touchLED, LOW);   // Apaga el LED
     }
   delay(200);
 
@@ -420,7 +413,7 @@ String Gemini(){
       deserializeJson(doc, payload);
       String Answer = doc["candidates"][0]["content"]["parts"][0]["text"];
       
-      // For Filtering our Special Characters, WhiteSpaces and NewLine Characters
+      // Filtrar caracteres no deseados
       Answer.trim();
       String filteredAnswer = "";
       for (size_t i = 0; i < Answer.length(); i++) {
