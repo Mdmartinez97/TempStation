@@ -10,7 +10,7 @@ La información presentada en la pantalla podrá ser recorrida mediante un coman
 
 ## ⚙️ HARDWARE
 
-Se utilizó un microcontrolador ESP32 en su versión DEVKIT programado en Arduino IDE (C++), un sensor de temperatura DS18B20 y un display LCD 16x2 con comunicación I2C.
+Utilicé un microcontrolador ESP32 en su versión DEVKIT programado en Arduino IDE (C++), un sensor de temperatura DS18B20 y un display LCD 16x2 con comunicación I2C.
 
 ### Cableado🔌
 | GPIO | Nombre | Propósito |
@@ -26,7 +26,7 @@ Se utilizó un microcontrolador ESP32 en su versión DEVKIT programado en Arduin
 
 ### Gabinete💡
 
-El producto final fue ideado como un reloj digital de pared que pueda ser colgado y quedar a la vista del usuario para su manipulación, pero también puede diseñarse para ser utilizado sobre un escritorio o como un dispositivo portátil.
+El producto final fue ideado como un reloj digital de pared que pueda ser colgado y quedar a la vista del usuario para su manipulación, pero también puede diseñarse como un dispositivo de escritorio o portátil.
 
 La carcasa aún no fue diseñada.
 
@@ -35,7 +35,7 @@ La carcasa aún no fue diseñada.
 ### WiFi Manager + Custom Parameters🛜
 
 
-Se utiliza la librería [WiFiManager de tzapu](https://github.com/tzapu/WiFiManager). Para saber cómo implementarla recomiendo ver los ejemplos dentro de su repositorio.
+Utilicé la librería [WiFiManager de tzapu](https://github.com/tzapu/WiFiManager). Para saber cómo implementarla recomiendo ver los ejemplos dentro de su repositorio.
 
 Cuando el dispositivo inicia por primera vez (o se reestablece la configuración), se crea un punto de acceso WiFi local al que podemos conectarnos y, través de una interfaz web, elegir la red WiFi a la que deseamos conectarnos, introduciendo allí su contraseña para guardarla en la memoria del dispositivo. De esta manera, en los siguientes encendidos, se conectará automáticamente a la red configurada sin necesidad de volver a realizar el proceso. Además, se utiliza la capacidad de la librería de agregar parámetros personalizados a esta interfaz, para solicitar al usuario datos de su ubicación que serán usados para obtener fecha, hora y clima.
 
@@ -43,7 +43,7 @@ La interfaz de usuario queda de la siguiente manera:
 
 <img src="./img/wm1.jpg" height="300">
 
-Tras ingresar a la ocpión "Configure WiFi" se pedirán también datos sobre la ubicación, configurados de la siguiente manera:
+Tras ingresar a la opción "Configure WiFi" se pedirán también datos sobre la ubicación, configurados de la siguiente manera:
 ```c++
 void CustomWiFiManager(){
   // [...]
@@ -119,7 +119,7 @@ void CustomWiFiManager(){
   }
 ```
 
-Por último, para reiniciar los ajustes WiFi y que el proceso WiFi Manager se inicie nuevamente, permitiendo así reubicar el dispositivo en otra red o ubicación geográfica, se dispone del botón pulsador `RstWF`.
+Por último, se dispone del botón pulsador `RstWF` para reiniciar los ajustes WiFi y que el proceso WiFi Manager se inicie nuevamente, permitiendo así reubicar el dispositivo en otra red o ubicación geográfica.
 
 ```c++
 void loop(){
@@ -174,7 +174,7 @@ String TimeData() {
 }
 ```
 
-Esta será consultada desde el `loop()` cada 1 minuto, según intervalo predefinido `NtpInterval`.
+Esta función será consultada desde el `loop()` cada 1 minuto, según intervalo predefinido `NtpInterval`.
 
 ### Medición de temperatura ambiente🏠
 
@@ -207,7 +207,7 @@ Para consultar la API es necesario primero crear una cuenta en [OpenWeatherMap](
 
 Se utilizan las librerías `HTTPClient.h` para realizar la consulta y `ArduinoJson.h` para acondicionar los datos obtenidos.
 
-La URL a consultar está compuesta por los datos solicitados anteriormente al usuario, Longitud, Latitud y UTC. Se incluye también nuestra ApiKey y el idioma y unidades de medida preferidas.
+La URL a consultar está compuesta por los datos solicitados anteriormente al usuario (Longitud, Latitud y UTC), la ApiKey, el idioma y el sistema metrico preferido.
 
 ```c++
 void getWeatherData(){
@@ -240,14 +240,14 @@ Esta función también será consultada según el intervalo `WTInterval`.
 
 ### Gemini IA API🤖✨
 
-Para consultar esta API será necesario registrarnos en [Google AI Studio](https://aistudio.google.com/app/apikey) y generar una llave de acceso.
+Para consultar esta API será necesario registrarnos en [Google AI Studio](https://aistudio.google.com/app/apikey) y generar una ApiKey.
 
 En nuestro `prompt` indicaremos la temperatura actual que consultamos en OpenWeatherMap y le pediremos a la IA que nos recomiende qué ropa usar para salir.
 
 Tras varias pruebas, se obtuvieron los mejores resultados con el siguiente `prompt`:
 
 ```c++
-String Prompt = "\"Afuera hace " + StrTemp + " °C. Cómo debo vestirme para salir si soy algo friolento? Responde en 30 caracteres como máximo usando jerga argentina, sin usar caracteres acentuados ni comas\"";
+"Afuera hace XX °C. Cómo debo vestirme para salir si soy algo friolento? Responde en 30 caracteres como máximo usando jerga argentina, sin usar caracteres acentuados ni comas";
 ```
 
 Luego, en nuestra función `Gemini()` armamos la consulta a la API indicando el `prompt` y la cantidad máxima de tokens a procesar, definida como constante en nuestro código. Tras recibir la respuesta en formato JSON, procesamos su contenido al igual que hicimos con la consulta a la API de clima. Será necesario también, filtrar la respuesta para evitar caracteres especiales, saltos de línea y espacios en blanco.
@@ -294,7 +294,7 @@ void loop(){
 ```
 Esta función también será consultada según el intervalo `WTInterval`.
 
-### Pantalla LCD y Scroll Touch 🖥️👈
+### Pantalla LCD y Scroll Touch🖥️👈
 
 El programa actualizará la información según los intervalos `NtpInterval` (1 minuto, Fecha y Hora ) y `WTInterval` (30 minutos, sensor de temperatura, API de clima y API Gemini). Se implementa para ello la función `millis()` dentro del `Loop()` para cada uno de los intervalos definidos (se muestra solo uno como ejemplo).
 
@@ -317,7 +317,7 @@ void loop(){
 
 Para mostrar toda la información, se divide en tres categorías: Temperaturas, Fecha/Hora y comentario IA. Se utiliza una pantalla LCD 16x2, lo que nos limita a un espacio de escritura de 32 caracteres en total.
 
-El desplazamiento entre las tres categorías de información es comandado por el usuario mediante un pulsador táctil, aprovechando dicha capacidad integrada del ESP32. Para ello se implementa nuestra función `Scroll()`, donde leemos el valor digital que devuelve `touchPin` y verificamos si es menor a nuestro valor umbral definido. En caso positivo, incrementamos un contador con el número de la pantalla a mostrar.
+El desplazamiento entre las tres categorías de información es comandado por el usuario mediante un pulsador táctil, aprovechando dicha capacidad integrada del ESP32. Para ello la función `Scroll()`, lee el valor digital que devuelve `touchPin` y verifica si es menor al valor umbral definido. En caso positivo, se incrementa un contador con el número de la pantalla a mostrar.
 
 ```c++
 // Función de cambio de pantalla con botón táctil
