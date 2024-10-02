@@ -48,15 +48,15 @@ After entering the "Configure WiFi" option, it requests the location data, confi
 ```c++
 void CustomWiFiManager(){
   // [...]
-  WiFiManagerParameter custom_text("<p>Ingrese los datos de la ubicación deseada</p>"); //Texto HTML al pie
+  WiFiManagerParameter custom_text("<p>Enter the data of the desired location</p>"); // HTML text at the bottom
   wifiManager.addParameter(&custom_text);
 
-  // Crea formulario en WM
+  // Create form in WM
   WiFiManagerParameter custom_param1("param1", "Longuitud (xx.xx):", 0, 6); // ID, label, default value, legth
   WiFiManagerParameter custom_param2("param2", "Latitud (xx.xx):", 0, 6);
   WiFiManagerParameter custom_param3("param3", "UTC (±xx):", 0, 3);
  
-  // Obtener parametros ingresados en WM
+  // Get parameters entered in WM
   wifiManager.addParameter(&custom_param1);
   wifiManager.addParameter(&custom_param2);
   wifiManager.addParameter(&custom_param3);
@@ -71,17 +71,17 @@ Longitude, Latitude and UTC data will be stored in EEPROM at addresses `address_
 ```c++
 void CustomWiFiManager(){
   // [...]
-  // Guardar parámetros de WM en variables globales
+  // Save WM parameters in global variables
   String parameter1 = custom_param1.getValue();
   String parameter2 = custom_param2.getValue();
   String parameter3 = custom_param3.getValue();
 
-  // Convertir datos a Float e Int
+  // Convert data
   lat = parameter1.toFloat();
   lon = parameter2.toFloat();
   utc = parameter3.toInt();
 
-  // Guardar datos en la EEPROM si la bandera es true
+  // Save data to EEPROM if flag is true
   if (shouldSaveConfig) {
     EEPROM.put(address_lat, lat);
     EEPROM.put(address_lon, lon);
@@ -96,7 +96,7 @@ void CustomWiFiManager(){
 ```c++
 void setup(){
   // [...]
-  // Buscar datos guardados
+  // Search saved data
   EEPROM.get(address_lat, lat);
   EEPROM.get(address_lon, lon);
   EEPROM.get(address_utc, utc);
@@ -106,17 +106,16 @@ void setup(){
 To ensure that the data entered by the user remains stored in the microcontroller's memory after it is reset, it is necessary to implement a flag in the function that is raised if the data has been updated to save it and remains low if the data has not changed, so as not to overwrite it with the default value.
 
 ```c++
-// Función WiFi Manager Custom Parameters
-bool shouldSaveConfig = false; // Bandera para guardar datos
+bool shouldSaveConfig = false; // Flag to save data
 
 void saveConfigCallback() {
-  // Bandera true si se actualizan los datos de WM
+  // Flag true if WM data was updated
   shouldSaveConfig = true;
 }
 
 void CustomWiFiManager(){
   // [...]
-  wifiManager.setSaveConfigCallback(saveConfigCallback); // Llama a la función si se actualizaron los datos
+  wifiManager.setSaveConfigCallback(saveConfigCallback); // Call the function if data was updated
   // [...]
   }
 ```
@@ -126,12 +125,12 @@ Finally, the `RstWF` push button is available to reset the WiFi settings and sta
 ```c++
 void loop(){
   // [...]
-  //BOTÓN DE RESET WIFI
+  //RESET WIFI
   if(digitalRead(RstWF) == LOW){
     delay(50);
       if(digitalRead(RstWF) == LOW){
         wifiManager.resetSettings();
-        Serial.println("---CREDENCIALES WIFI BORRADAS---");
+        Serial.println("--- WIFI SETTINGS ERASED ---");
         lcd.clear();
         lcd.backlight();
         lcd.setCursor(2, 0);
@@ -153,8 +152,8 @@ In the `setup()` you need to do the initial configuration and then call the `Tim
 ```c++
 void setup(){
  // [...]
- // Configurar fecha y hora
-  configTime(utc*60*60, 0, "pool.ntp.org"); // UTC expresado en segundos
+ // Date and Time config
+  configTime(utc*60*60, 0, "pool.ntp.org"); // UTC in seconds
   TimeData();
  // [...]
 }
@@ -163,7 +162,7 @@ void setup(){
 The `TimeData()` function queries the server for the day, month, and year and saves the data in the `time[]` structure.
 
 ```c++
-//Obtener Fecha y Hora desde NTP Server
+// Get Date and Time from NTP Server
 String TimeData() {
  struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
@@ -187,12 +186,12 @@ Using both libraries together, objects of the corresponding classes are created 
 ```c++
 void loop(){
  // [...]
-// Consultar Sensor y API's
+// Ask Sensor and API’s
   if (millis() - WTPrevMillis > WTInterval || WTPrevMillis == 0){
 
-  // Medir Temperatura interior
+  // Measure indoor temperature
   sensors.requestTemperatures();
-  localTemp = sensors.getTempCByIndex(0); // Consultar sensor #0   
+  localTemp = sensors.getTempCByIndex(0); // Ask sensor #0   
       Serial.print("Local Temp: ");      
       Serial.println(localTemp);
   // [...]
@@ -217,19 +216,19 @@ void getWeatherData(){
   // URL web
   String url = "https://api.openweathermap.org/data/2.5/weather?lat=" + String(lat) + "&lon=" + String(lon) + "&appid=" + apiKey + "&units=metric&lang=es";
 
-  // Consulta a URL
+  // URL query
   http.begin(url);
   int httpCode = http.GET();
 
   if(httpCode > 0) {
     String payload = http.getString();
-    // Parseo de JSON
+    // JSON Parse
       StaticJsonDocument<1024> doc;
       DeserializationError error = deserializeJson(doc, payload);
   // [...]
-  // Busca temperatura actual en el JSON
+  // Get current temperature in JSON
   Temp = doc["main"]["temp"];
-  // Busca sensación térmica en el JSON
+  // Get thermal sensation in JSON
   feelTemp = doc["main"]["feels_like"];
   // [...]
   }
@@ -257,7 +256,7 @@ Then, in our function called `Gemini()` we build the API query indicating the `p
 ```c++
 void Gemini(){
 // [...]
-// Filtrar caracteres no deseados
+// Filter unwanted characters
       Answer.trim();
       String filteredAnswer = "";
       for (size_t i = 0; i < Answer.length(); i++) {
@@ -278,12 +277,12 @@ Finally, we split the answer into two rows so that it can be displayed on both r
 ```c++
 void loop(){
 // [...]
-  // Generar comentario Gemini AI
+  // Generate comment Gemini AI
     String Clothes = Gemini();
-    Serial.print("Comentario Gemini: ");      
+    Serial.print("Gemini comment: ");      
     Serial.println(Clothes);
 
-    // Dividir frease en 2 filas
+    // Split frease into 2 rows
     Clothes1 = Clothes.substring(0, 15);
     Clothes2 = Clothes.substring(15);
 
@@ -303,10 +302,9 @@ The program will update the information according to the intervals `NtpInterval`
 ```c++
 void loop(){
 // [...]
-  // Consultar NTP Server
+  // Query NTP Server
   if (millis() - NtpPrevMillis > NtpInterval || NtpPrevMillis == 0){
   
-    // Consultar Fecha y Hora
     timestamp = TimeData();
       Serial.print("Timestamp: ");      
       Serial.println(timestamp);
@@ -322,15 +320,15 @@ To display all the information, it is divided into three categories: Temperature
 The scrolling between the three categories of information is commanded by the user through a touch button, taking advantage of the built-in capacity of the ESP32. To do this, the `Scroll()` function reads the digital value returned by `touchPin` and verifies if it is less than the defined threshold value. If it is positive, a counter is incremented with the number of the screen to be displayed.
 
 ```c++
-// Función de cambio de pantalla con botón táctil
+// Display Scroll function
 int Scroll(){
   int N_opciones = 3;
   static int opcion;
   int touchValue = touchRead(touchPin);
 
-  const int touchThreshold = 80; // Valor umbral de sensibilidad touchPin
+  const int touchThreshold = 80; // Threshold value for touchPin sensitivity
   if (touchValue < touchThreshold) {
-    digitalWrite(touchLED, HIGH);  // Enciende el LED
+    digitalWrite(touchLED, HIGH);  // Turn on LED
       if(opcion < N_opciones - 1){
         opcion++;
       } else {
@@ -338,7 +336,7 @@ int Scroll(){
         }
     
   } else {
-    digitalWrite(touchLED, LOW);   // Apaga el LED
+    digitalWrite(touchLED, LOW);   // Turn off LED
     }
   delay(200);
 
