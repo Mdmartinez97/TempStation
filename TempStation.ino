@@ -1,76 +1,61 @@
-//******************* Hora y Clima ***********************
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiManager.h>
+#include <EEPROM.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
 #include <ArduinoJson.h>
+#include <LiquidCrystal_I2C.h>
 
-// Latitud, Longitud
-float lat, lon;
-int localTemp,Temp, feelTemp;
+#include "secrets.h"
+#include "TimeData.h"
 
-const char* apiKey = "79ec60437018d54a22094466dce934bc";
+  // Manejo de respuesta IA
+  String Clothes1, Clothes2;
+  
+//****************** Wheater API *************************
+int Temp, feelTemp;
 
 // Intervalo de consulta
 unsigned long WTPrevMillis = 0;
 unsigned long WTInterval = 1800000; // 30 minutos
 
-//******************* Fecha y Hora ***********************
-#include <time.h>
-
-String timestamp;
-int utc;
-
-// Intervalo de consulta
-unsigned long NtpPrevMillis = 0;
-unsigned long NtpInterval = 60000; // 1 minuto
-
-//***************** LCD Display **************************
-#include <LiquidCrystal_I2C.h>
-// Dirección I2C
+//*************** LCD & Touch Scroll *********************
 const int I2Caddress = 0x27;
 
-// Crear un objeto LiquidCrystal_I2C
 LiquidCrystal_I2C lcd(I2Caddress, 16, 2);
 
-// Duración de pantalla encendida
-unsigned long LCDPrevMillis = 0;
-unsigned long LCDInterval = 10000; // 10 segundos
+#define touchPin 4
+#define touchLED 2
 
 int pantalla_anterior;
 
+// Duración de pantalla encendida
+unsigned long LCDPrevMillis = 0;
+unsigned long LCDInterval = 15000; // 15 segundos
+
 //***************** Sensor DS18B20 ***********************
-#include <OneWire.h>
-#include <DallasTemperature.h>
 #define SensorPin 5
+
 // Declaración de objetos
 OneWire oneWire(SensorPin);
 DallasTemperature sensors(&oneWire);
 
-//******************* Pin Touch **************************
-const int touchLED = 2;
-const int touchPin = 4;
+int localTemp;
 
 //******************* WiFi Manager ***********************
-#include <WiFi.h>
-#include <WiFiManager.h>
-#include <EEPROM.h>
-#define RstWF 15 //Botón Reset WiFi
+#define RstWF 15 // Botón Reset WiFi
 
 WiFiManager wifiManager;
 
-const char* WM_ssid = "WiFi Manager TempStation";
-const char* WM_pass = "12345678";
-
+// Location data
+float lat, lon;
+int utc;
 
 // Direcciones de memoria
 const int address_lat = 0;
 const int address_lon = 4;
 const int address_utc = 8;
-
-//******************* Gemini AI ***********************
-const char* Gemini_Token = "AIzaSyA2pDi2CZvlC9RqOE3M8j7mFIFIjXJfyA4";
-const char* Gemini_Max_Tokens = "100";
-
-String Clothes1, Clothes2;
 
 void setup() {//######################################################## SETUP #####################################################
   Serial.begin(115200);
@@ -98,18 +83,17 @@ void setup() {//######################################################## SETUP #
 
 void loop() {//######################################################## LOOP #######################################################
 
-  // Consultar NTP Server
-  if (millis() - NtpPrevMillis > NtpInterval || NtpPrevMillis == 0){
+  //-----Consultar NTP Server
+    if (millis() - NtpPrevMillis > NtpInterval || NtpPrevMillis == 0){
   
-    // Consultar Fecha y Hora
     timestamp = TimeData();
-      Serial.print("Timestamp: ");      
-      Serial.println(timestamp);
+    Serial.print("Timestamp: ");      
+    Serial.println(timestamp);
 
     NtpPrevMillis = millis();
   }
 
-  // Consultar Sensor y API's
+  //-----Consultar Sensor y API's 
   if (millis() - WTPrevMillis > WTInterval || WTPrevMillis == 0){
 
     // Medir Temperatura interior
@@ -117,7 +101,6 @@ void loop() {//######################################################## LOOP ###
     localTemp = sensors.getTempCByIndex(0); // Consultar sensor #0
       Serial.print("Local Temp: ");      
       Serial.println(localTemp);
-
 
     // Consultar Temperatura exterior
     getWeatherData(Temp, feelTemp);
@@ -127,11 +110,11 @@ void loop() {//######################################################## LOOP ###
       Serial.println(feelTemp);
 
     // Generar comentario Gemini AI
-    String Clothes = Gemini();
+    String Clothes = Gemini(feelTemp);
       Serial.print("Comentario Gemini: ");      
       Serial.println(Clothes);
 
-      // Dividir frease en 2 filas
+      // Dividir frase en 2 filas para LCD
       Clothes1 = Clothes.substring(0, 15);
       Clothes2 = Clothes.substring(15);
 
@@ -318,7 +301,7 @@ void getWeatherData(int &Temp, int &feelTemp) {
   HTTPClient http; // Iniciación
 
   // URL web
-  String url = "https://api.openweathermap.org/data/2.5/weather?lat=" + String(lat) + "&lon=" + String(lon) + "&appid=" + apiKey + "&units=metric&lang=es";
+  String url = "https://api.openweathermap.org/data/2.5/weather?lat=" + String(lat) + "&lon=" + String(lon) + "&appid=" + OpenWeatherMap_ApiKey + "&units=metric&lang=es";
   //Serial.println(url); // for DEBUG
 
   // Consulta a URL
@@ -350,18 +333,6 @@ void getWeatherData(int &Temp, int &feelTemp) {
   http.end();
 }
 
-//Obtener Fecha y Hora desde NTP Server
-String TimeData() {
- struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    Serial.println("Failed to obtain time");
-  }
-  char time[20];
-  strftime(time, sizeof(time), "%d/%m/%y   %H:%M", &timeinfo); //Agregar %A para obeter el día de la semana
-  
-  return time;
-}
-
 // Función de cambio de pantalla con botón táctil
 int Scroll(){
   int N_opciones = 3;
@@ -387,14 +358,14 @@ int Scroll(){
 }
 
 // Consulta vestimenta adecuada a Gemini AI
-String Gemini(){
-
+String Gemini(int &feelTemp){
+  const char* Gemini_Max_Tokens = "100";
   String StrTemp = String(feelTemp);
   String Prompt = "\"Afuera hace " + StrTemp + " °C. Cómo debo vestirme para salir si soy algo friolento? Responde en 30 caracteres como máximo usando jerga argentina, sin usar caracteres acentuados ni comas\"";
 
   HTTPClient https;
 
-  if (https.begin("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + (String)Gemini_Token)) {  // HTTPS
+  if (https.begin("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + (String)Gemini_ApiKey)) {  // HTTPS
 
     https.addHeader("Content-Type", "application/json");
     String payload = String("{\"contents\": [{\"parts\":[{\"text\":" + Prompt + "}]}],\"generationConfig\": {\"maxOutputTokens\": " + (String)Gemini_Max_Tokens + "}}");
