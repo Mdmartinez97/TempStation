@@ -8,3 +8,5 @@ const char* OpenWeatherMap_ApiKey = "79ec60437018d54a22094466dce934bc";
 
 //website: aistudio.google.com/app/apikey
 const char* Gemini_ApiKey = "AIzaSyA2pDi2CZvlC9RqOE3M8j7mFIFIjXJfyA4";
+
+//********************* User Config **********************

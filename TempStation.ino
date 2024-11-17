@@ -7,18 +7,12 @@
 #include <ArduinoJson.h>
 #include <LiquidCrystal_I2C.h>
 
-#include "secrets.h"
+#include "Secrets.h"
 #include "TimeData.h"
+#include "Gemini.h"
+#include "WeatherRequest.h"
 
-  // Manejo de respuesta IA
-  String Clothes1, Clothes2;
-  
-//****************** Wheater API *************************
 int Temp, feelTemp;
-
-// Intervalo de consulta
-unsigned long WTPrevMillis = 0;
-unsigned long WTInterval = 1800000; // 30 minutos
 
 //*************** LCD & Touch Scroll *********************
 const int I2Caddress = 0x27;
@@ -28,11 +22,15 @@ LiquidCrystal_I2C lcd(I2Caddress, 16, 2);
 #define touchPin 4
 #define touchLED 2
 
-int pantalla_anterior;
-
 // Duración de pantalla encendida
 unsigned long LCDPrevMillis = 0;
 unsigned long LCDInterval = 15000; // 15 segundos
+
+int pantalla_anterior;
+
+#include "Scroll.h"
+
+String Clothes1, Clothes2;
 
 //***************** Sensor DS18B20 ***********************
 #define SensorPin 5
@@ -103,7 +101,7 @@ void loop() {//######################################################## LOOP ###
       Serial.println(localTemp);
 
     // Consultar Temperatura exterior
-    getWeatherData(Temp, feelTemp);
+    getWeatherData(Temp, feelTemp, lat, lon);
       Serial.print("Temp: ");      
       Serial.println(Temp);
       Serial.print("Feel Temp: ");      
@@ -294,115 +292,4 @@ void CustomWiFiManager(){
   // Tries to reconnect automatically when the connection is lost
   WiFi.setAutoReconnect(true);
   WiFi.persistent(true);
-}
-
-// Función de consulta a Get Weather Map
-void getWeatherData(int &Temp, int &feelTemp) {
-  HTTPClient http; // Iniciación
-
-  // URL web
-  String url = "https://api.openweathermap.org/data/2.5/weather?lat=" + String(lat) + "&lon=" + String(lon) + "&appid=" + OpenWeatherMap_ApiKey + "&units=metric&lang=es";
-  //Serial.println(url); // for DEBUG
-
-  // Consulta a URL
-  http.begin(url);
-  int httpCode = http.GET();
-
-  if(httpCode > 0) {
-    String payload = http.getString();
-    // Parseo de JSON
-      StaticJsonDocument<1024> doc;
-      DeserializationError error = deserializeJson(doc, payload);
-
-    if (error) {
-      Serial.print(F("deserializeJson() failed: "));
-      Serial.println(error.c_str());
-      return;
-    }
-
-    // Busca temperatura actual en el JSON
-    Temp = doc["main"]["temp"];
-
-    // Busca sensación térmica en el JSON
-    feelTemp = doc["main"]["feels_like"];
-
-  } else {
-    Serial.println("Error en la solicitud HTTP");
-  }
-
-  http.end();
-}
-
-// Función de cambio de pantalla con botón táctil
-int Scroll(){
-  int N_opciones = 3;
-  static int opcion;
-  int touchValue = touchRead(touchPin);
-  //Serial.println(touchValue);
-
-  const int touchThreshold = 80; // Valor umbral de sensibilidad touchPin
-  if (touchValue < touchThreshold) {
-    digitalWrite(touchLED, HIGH);  // Enciende el LED
-      if(opcion < N_opciones - 1){
-        opcion++;
-      } else {
-        opcion=0;
-        }
-    
-  } else {
-    digitalWrite(touchLED, LOW);   // Apaga el LED
-    }
-  delay(200);
-
-  return opcion;
-}
-
-// Consulta vestimenta adecuada a Gemini AI
-String Gemini(int &feelTemp){
-  const char* Gemini_Max_Tokens = "100";
-  String StrTemp = String(feelTemp);
-  String Prompt = "\"Afuera hace " + StrTemp + " °C. Cómo debo vestirme para salir si soy algo friolento? Responde en 30 caracteres como máximo usando jerga argentina, sin usar caracteres acentuados ni comas\"";
-
-  HTTPClient https;
-
-  if (https.begin("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + (String)Gemini_ApiKey)) {  // HTTPS
-
-    https.addHeader("Content-Type", "application/json");
-    String payload = String("{\"contents\": [{\"parts\":[{\"text\":" + Prompt + "}]}],\"generationConfig\": {\"maxOutputTokens\": " + (String)Gemini_Max_Tokens + "}}");
-    
-    //Serial.println(payload); // PROMPT DEBUG
-
-    // start connection and send HTTP header
-    int httpCode = https.POST(payload);
-
-
-    if (httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_MOVED_PERMANENTLY) {
-      String payload = https.getString();
-      
-      DynamicJsonDocument doc(1024);
-
-      deserializeJson(doc, payload);
-      String Answer = doc["candidates"][0]["content"]["parts"][0]["text"];
-      
-      // Filtrar caracteres no deseados
-      Answer.trim();
-      String filteredAnswer = "";
-      for (size_t i = 0; i < Answer.length(); i++) {
-        char c = Answer[i];
-        if (isalnum(c) || isspace(c)) {
-          filteredAnswer += c;
-        } else {
-          filteredAnswer += ' ';
-          }
-      }
-      Answer = filteredAnswer;
-
-      return Answer;
-    } else {
-      Serial.printf("[HTTPS] GET... failed, error: %s\n", https.errorToString(httpCode).c_str());
-      }
-    https.end();
-  } else {
-    Serial.printf("[HTTPS] Unable to connect\n");
-    }
 }
