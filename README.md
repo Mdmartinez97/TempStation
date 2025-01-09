@@ -354,7 +354,7 @@ I propose the following useful and necessary improvements for the future of the 
 
 - Hardware: Design and build a casing.
 
-- Firmware: Divide the main code into individual files for each custom function.
+- Firmware: Divide the main code into individual files for each custom function.[DONE]
 
 ## 📜 CREDITS
 
